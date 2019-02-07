@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"softnet/cmd/sandbox/lib"
 	"softnet/pkg/api"
 	"softnet/pkg/repository"
 )
@@ -15,8 +16,12 @@ func main() {
 	payment := repository.DefaultPaymentRepository{
 		DB: db,
 	}
+	agent := repository.DefaultCashInAgentRepository{
+		DB: db,
+	}
 	paymentService := api.DefaultPaymentService{
 		Payment: &payment,
+		Agent:   &agent,
 	}
 
 	m := api.DefaultMiddleware{
@@ -28,6 +33,10 @@ func main() {
 		ClientAppInfo:  &clientAppInfo,
 		PaymentService: &paymentService,
 	})
+
+	go func() {
+		lib.StartSandboxServer(db)
+	}()
 
 	if e := server.Run(":3000"); e != nil {
 		log.Fatal(e)

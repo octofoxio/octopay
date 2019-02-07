@@ -1,0 +1,15 @@
+
+syntax = "proto3";
+package agent;
+option go_package = "softnet/pkg/api/proto";
+
+service Payment {
+    rpc ConfirmPaymentCashIn (ConfirmPaymentCashInInput) returns (ConfirmPaymentCashInOutput);
+}
+
+message ConfirmPaymentCashInInput {
+    string PaymentID = 1;
+}
+
+message ConfirmPaymentCashInOutput { }
+

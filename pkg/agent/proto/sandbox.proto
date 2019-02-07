@@ -1,0 +1,28 @@
+
+syntax = "proto3";
+package agent;
+option go_package = "softnet/pkg/agent/proto";
+
+service SandboxAgent {
+    rpc CreateNewPaymentReference (CreateNewPaymentReferenceInput) returns (CreateNewPaymentReferenceOutput);
+}
+
+message CreateNewPaymentReferenceInput {
+    string CurrencyCode = 1;
+    string Ref1  = 3;
+    float Amount = 2;
+    int64 ExpireAt = 4;
+    string PaymentID = 5;
+}
+
+message CreateNewPaymentReferenceOutput {
+    message Output {
+        string Type = 1;
+        string Code = 2;
+        string Format = 3;
+        string PaymentURI = 4;
+    }
+    Output result = 1;
+    string error = 2;
+}
+

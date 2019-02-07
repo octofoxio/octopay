@@ -1,26 +1,27 @@
 package repository
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"github.com/jinzhu/gorm"
-	"gopkg.in/resty.v1"
-	"net/http"
+	"google.golang.org/grpc"
+	"softnet/pkg/agent/proto"
 	"time"
 )
 
 const (
-	_ = iota
-	PaymentMethodRedirect
-	PaymentMethodCounter
+	AgentTypeSandbox = "SANDBOX"
 )
 
 type CashInAgent struct {
-	ID            string `gorm:"primary_key"`
-	Endpoint      string
-	PaymentMethod int
+	ID       string `gorm:"primary_key"`
+	Type     string
+	Endpoint string
 }
-type CashInAgentRepository struct {
+type CashInAgentRepository interface {
+	CreatePaymentReference(in *CreatePaymentReferenceInput) (*CreatePaymentReferenceOutput, error)
+}
+type DefaultCashInAgentRepository struct {
 	DB *gorm.DB
 }
 type CreatePaymentReferenceInput struct {
@@ -30,24 +31,41 @@ type CreatePaymentReferenceInput struct {
 	Ref1         string
 	Ref2         string
 	AgentID      string
-	ClientID     string
 	ExpireAt     time.Time
 }
 type CreatePaymentReferenceOutput struct {
-	Method    string
-	Reference interface{}
+	Type   string
+	Method int
+	Data   interface{}
 }
 
 type PaymentReferenceCounter struct {
-	Type string
-	Code string
-	Memo string
+	Code   string
+	Format string
 }
 type PaymentReferenceRedirect struct {
 	PaymentURI string
 }
 
-func (s *CashInAgentRepository) CreatePaymentReference(in *CreatePaymentReferenceInput) (*CreatePaymentReferenceOutput, error) {
+func GetResultFromPaymentAgent(cc *grpc.ClientConn, agent *CashInAgent, in *CreatePaymentReferenceInput) (*proto.CreateNewPaymentReferenceOutput, error) {
+	switch agent.Type {
+	case AgentTypeSandbox:
+		sandboxAgent := proto.NewSandboxAgentClient(cc)
+		result, err := sandboxAgent.CreateNewPaymentReference(context.Background(), &proto.CreateNewPaymentReferenceInput{
+			Amount:       float32(in.Amount),
+			CurrencyCode: in.CurrencyCode,
+			Ref1:         in.Ref1,
+			PaymentID:    in.PaymentID,
+			ExpireAt:     in.ExpireAt.Unix(),
+		})
+		return result, err
+	default:
+		return nil, fmt.Errorf("Payment agent %s not supported", agent.Type)
+	}
+}
+
+func (s *DefaultCashInAgentRepository) CreatePaymentReference(in *CreatePaymentReferenceInput) (*CreatePaymentReferenceOutput, error) {
+
 	var agent CashInAgent
 
 	st := s.DB.Find(&agent, &CashInAgent{
@@ -57,60 +75,36 @@ func (s *CashInAgentRepository) CreatePaymentReference(in *CreatePaymentReferenc
 		return nil, st.Error
 	}
 
-	type PaymentAgentRequestPayload struct {
-		PaymentID    string
-		CurrencyCode string
-		Amount       float64
-		Ref1         string
-		Ref2         string
-		ExpireAt     time.Time
-	}
-	resp, err := resty.R().
-		SetBody(PaymentAgentRequestPayload{
-			PaymentID:    in.PaymentID,
-			ExpireAt:     in.ExpireAt,
-			Amount:       in.Amount,
-			CurrencyCode: in.CurrencyCode,
-			Ref1:         in.Ref1,
-			Ref2:         in.Ref2,
-		}).
-		Post(agent.Endpoint)
-	if err != nil {
-		return nil, err
-	} else if resp.StatusCode() > http.StatusBadRequest {
-		return nil, fmt.Errorf("Payment from %s return %s", agent.ID, http.StatusText(resp.StatusCode()))
-	}
+	agentConn, err := grpc.Dial(agent.Endpoint, grpc.WithInsecure())
 
-	type PaymentAgentResponsePayload struct {
-		PaymentURI string
-		Type       string
-		Code       string
-		Memo       string
-	}
-	var result PaymentAgentResponsePayload
-	err = json.Unmarshal(resp.Body(), &result)
+	agentPaymentResult, err := GetResultFromPaymentAgent(agentConn, &agent, in)
 
 	if err != nil {
 		return nil, err
 	}
 
-	var reference interface{}
-	switch agent.PaymentMethod {
-	case PaymentMethodCounter:
-		reference = PaymentReferenceCounter{
-			Code: result.Code,
-			Type: result.Type,
-			Memo: result.Memo,
-		}
-		break
-	case PaymentMethodRedirect:
-		reference = PaymentReferenceRedirect{
-			PaymentURI: result.PaymentURI,
-		}
-		break
+	if agentPaymentResult.Result == nil {
+		return nil, fmt.Errorf("Payment agent error")
 	}
 
-	return &CreatePaymentReferenceOutput{
-		Reference: reference,
-	}, st.Error
+	switch agentPaymentResult.Result.Type {
+	case "barcode":
+		return &CreatePaymentReferenceOutput{
+			Type: agentPaymentResult.Result.Type,
+			Data: PaymentReferenceCounter{
+				Code:   agentPaymentResult.Result.Code,
+				Format: agentPaymentResult.Result.Format,
+			},
+		}, st.Error
+	case "redirect":
+		return &CreatePaymentReferenceOutput{
+			Type: agentPaymentResult.Result.Type,
+			Data: PaymentReferenceRedirect{
+				PaymentURI: agentPaymentResult.Result.PaymentURI,
+			},
+		}, st.Error
+	default:
+		return nil, fmt.Errorf("Error: payment method %s not supported", agent.Type)
+	}
+
 }

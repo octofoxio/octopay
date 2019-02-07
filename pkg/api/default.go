@@ -3,9 +3,9 @@ package api
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/json"
 	"net/http"
 	"softnet/pkg/repository"
-	"time"
 )
 
 type NewAPIInput struct {
@@ -51,12 +51,19 @@ func NewAPI(in *NewAPIInput) *gin.Engine {
 			session := MustGetClient(c)
 
 			type PostPaymentBody struct {
-				CurrencyCode string
-				Amount       float64
-				Ref1         string
-				Ref2         string
-				AgentID      string
-				ExpireAt     time.Time
+				PaymentChannel string `json:"paymentChannel"`
+				Amount         int    `json:"amount"`
+				Currency       string `json:"currency"`
+				RequestPayload struct {
+					Reference     string        `json:"reference"`
+					ReferenceDate string        `json:"referenceDate"`
+					ProductList   []interface{} `json:"productList"`
+					FirstName     string        `json:"firstName"`
+					LastName      string        `json:"lastName"`
+					Email         string        `json:"email"`
+					CreditData    string        `json:"creditData"`
+					Remark        string        `json:"remark"`
+				} `json:"requestPayload"`
 			}
 
 			var body PostPaymentBody
@@ -66,16 +73,30 @@ func NewAPI(in *NewAPIInput) *gin.Engine {
 				return
 			}
 
+			referencePayload, err := json.Marshal(body.RequestPayload)
 			output, err := in.PaymentService.CreateNewPaymentSession(&CreateNewPaymentSessionInput{
-				ClientID: session.ID,
-				AgentID:  body.AgentID,
+				ClientID:     session.ID,
+				AgentID:      body.PaymentChannel,
+				Amount:       float64(body.Amount) / 100,
+				CurrencyCode: body.Currency,
+				Ref1:         string(referencePayload),
 			})
 			if err != nil {
-				c.AbortWithError(http.StatusServiceUnavailable, err)
+				err := c.AbortWithError(http.StatusServiceUnavailable, err)
+				if err != nil {
+					c.AbortWithStatus(http.StatusInternalServerError)
+				}
 				return
 			}
 
-			c.JSON(http.StatusCreated, output)
+			type PostPaymentResult struct {
+				Status string      `json:"status"`
+				Data   interface{} `json:"data"`
+			}
+			c.JSON(http.StatusCreated, &PostPaymentResult{
+				Status: "success",
+				Data:   output,
+			})
 
 		})
 	}

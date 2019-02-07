@@ -40,3 +40,10 @@
 [[constraint]]
   name = "gopkg.in/resty.v1"
   version = "1.11.0"
+
+[[constraint]]
+  name = "github.com/golang/protobuf"
+  revision = "1d3f30b51784bec5aad268e59fd3c2fc1c2fe73f"
+[[constraint]]
+  name = "github.com/boombuler/barcode"
+  version = "1.0.0"

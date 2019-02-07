@@ -39,10 +39,10 @@ func DefaultGenesis(db *gorm.DB) *gorm.DB {
 			&ClientApplicationInformation{},
 		).
 		FirstOrCreate(&CashInAgent{
-			ID:            "Sandbox",
-			Endpoint:      "http://localhost:4000",
-			PaymentMethod: PaymentMethodCounter,
-		}, &CashInAgent{ID: "Sandbox"}).
+			ID:       "SandboxCounter",
+			Endpoint: "localhost:4000",
+			Type:     AgentTypeSandbox,
+		}, &CashInAgent{ID: "SandboxCounter", Type: AgentTypeSandbox}).
 		FirstOrCreate(&ClientApplicationInformation{
 			ID:     key,
 			Secret: base64.URLEncoding.EncodeToString(hasher.Sum(nil)),

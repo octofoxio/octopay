@@ -11,6 +11,7 @@ const (
 	PaymentStatusInitial       = "INITIAL"
 	PaymentStatusReadyToCashIn = "READY_TO_CASH_IN"
 	PaymentStatusCashInConfirm = "CASH_IN_CONFIRM"
+	PaymentStatusFailed        = "FAILED"
 )
 
 type PaymentStatusHistory struct {
@@ -60,10 +61,19 @@ type CreateOutput struct {
 }
 type CommitHistoryInput struct {
 	PaymentID string
-	History   PaymentStatusHistory
+	Status    string
+	Memo      string
+}
+type UpdateCashInInformationInput struct {
+	ID              *uuid.UUID
+	CashInReference string
+}
+type UpdateCashInInformationOutput struct {
+	Status string
 }
 type PaymentRepository interface {
 	Create(*CreateInput) (*CreateOutput, error)
+	UpdateCashInInformation(*UpdateCashInInformationInput) (*UpdateCashInInformationOutput, error)
 	CommitHistory(input *CommitHistoryInput) error
 }
 
@@ -71,10 +81,22 @@ type DefaultPaymentRepository struct {
 	DB *gorm.DB
 }
 
+func (d *DefaultPaymentRepository) UpdateCashInInformation(input *UpdateCashInInformationInput) (*UpdateCashInInformationOutput, error) {
+
+	if err := d.CommitHistory(&CommitHistoryInput{
+		PaymentID: input.ID.String(),
+		Status:    PaymentStatusReadyToCashIn,
+	}); err != nil {
+		return nil, err
+	}
+	return &UpdateCashInInformationOutput{}, nil
+}
+
 func (d *DefaultPaymentRepository) CommitHistory(input *CommitHistoryInput) error {
 	st := d.DB.Create(&PaymentStatusHistory{
 		PaymentID: uuid.FromStringOrNil(input.PaymentID),
-		Memo:      input.History.Memo,
+		Memo:      input.Memo,
+		Status:    input.Status,
 	})
 	return st.Error
 }
