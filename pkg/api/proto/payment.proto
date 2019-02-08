@@ -3,9 +3,35 @@ syntax = "proto3";
 package agent;
 option go_package = "softnet/pkg/api/proto";
 
+message PaymentAgent {
+    string ID = 1;
+    string Type = 2;
+}
+message History {
+    string Status = 1;
+    string Memo = 2;
+}
+message Transaction {
+    string ID = 1;
+    PaymentAgent PaymentProvider = 2;
+    string CashInReference = 3;
+    string Currency = 4;
+    float Amount = 5;
+    repeated History History = 6;
+    string CashInType = 7;
+}
+
 service Payment {
     rpc ConfirmPaymentCashIn (ConfirmPaymentCashInInput) returns (ConfirmPaymentCashInOutput);
+    rpc GetTransactionList (GetTransactionListInput) returns (GetTransactionListOutput);
 }
+message GetTransactionListInput{
+    int32 limit = 1;
+    int32 offset = 2;
+};
+message GetTransactionListOutput {
+    repeated Transaction transactions = 1;
+};
 
 message ConfirmPaymentCashInInput {
     string PaymentID = 1;

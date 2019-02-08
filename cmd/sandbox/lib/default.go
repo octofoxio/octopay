@@ -12,6 +12,7 @@ import (
 
 func StartSandboxServer(db *gorm.DB) {
 	agent := agent2.NewSandboxCounterAgent(db)
+
 	s := grpc.NewServer()
 	proto.RegisterSandboxAgentServer(s, agent)
 	reflection.Register(s)
@@ -20,6 +21,6 @@ func StartSandboxServer(db *gorm.DB) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("GRPC Running on :%s\n", "4000")
+	fmt.Printf("Sandbox payment counter GRPC Running on :%s\n", "4000")
 	s.Serve(lis)
 }

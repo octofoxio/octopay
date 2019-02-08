@@ -4,17 +4,22 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/json"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+	"net"
 	"net/http"
+	proto2 "softnet/pkg/api/proto"
 	"softnet/pkg/repository"
 )
 
 type NewAPIInput struct {
-	Middleware     Middleware
-	ClientAppInfo  repository.ClientApplicationInformationRepository
-	PaymentService PaymentService
+	Middleware    Middleware
+	ClientAppInfo repository.ClientApplicationInformationRepository
+	PaymentGRPC   proto2.PaymentServer
+	PaymentAPI    PaymentService
 }
 
-func NewAPI(in *NewAPIInput) *gin.Engine {
+func NewAPI(in *NewAPIInput) (*gin.Engine, func()) {
 	r := gin.Default()
 
 	authenticationResource := r.Group("/auth")
@@ -43,7 +48,23 @@ func NewAPI(in *NewAPIInput) *gin.Engine {
 		})
 	}
 
-	paymentResource := r.Group("/payment")
+	webhookResource := r.Group("/webhooks")
+	{
+		webhookResource.POST("/", func(c *gin.Context) {
+			type Body struct {
+				URL         string `json:"url"`
+				HTTPHeaders []struct {
+					Key   string `json:"key"`
+					Value string `json:"value"`
+				} `json:"httpHeaders"`
+			}
+			var body Body
+			err := c.BindJSON(&body)
+
+		})
+	}
+
+	paymentResource := r.Group("/sources")
 	{
 		paymentResource.Use(in.Middleware.WithValidateClientCredentials)
 		paymentResource.POST("/", func(c *gin.Context) {
@@ -74,7 +95,7 @@ func NewAPI(in *NewAPIInput) *gin.Engine {
 			}
 
 			referencePayload, err := json.Marshal(body.RequestPayload)
-			output, err := in.PaymentService.CreateNewPaymentSession(&CreateNewPaymentSessionInput{
+			output, err := in.PaymentAPI.CreateNewPaymentSession(&CreateNewPaymentSessionInput{
 				ClientID:     session.ID,
 				AgentID:      body.PaymentChannel,
 				Amount:       float64(body.Amount) / 100,
@@ -100,5 +121,20 @@ func NewAPI(in *NewAPIInput) *gin.Engine {
 
 		})
 	}
-	return r
+	return r, func() {
+		s := grpc.NewServer()
+		proto2.RegisterPaymentServer(s, in.PaymentGRPC)
+		reflection.Register(s)
+		lis, err := net.Listen("tcp",
+			fmt.Sprintf(":%s", "3009"))
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("PaymentModel GRPC Running on :%s\n", "3009")
+		err = s.Serve(lis)
+		if err != nil {
+			panic(err)
+		}
+
+	}
 }

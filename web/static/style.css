@@ -1,0 +1,48 @@
+:root {
+    --pale-grey: #f4f7fc;
+    --white: #ffffff;
+    --very-light-blue: #e5ebf2;
+    --bluish-grey: #818e94;
+    --greyish-brown: #4a4a4a;
+    --light-gray: #d8d8d8;
+    --dark-grass-green: #417505;
+    --dark-gray: #9b9b9b;
+    --greyblue: #8b979c;
+    --pale-grey-two: #ecedf2;
+    --dark-sky-blue: #4a90e2;
+}
+.default-background-color {
+    background-color: var(--pale-grey);
+}
+
+.wrap {
+    height: 100vh;
+}
+.navigation-bar {
+    background-color: var(--white);
+    height: 79px;
+    border-bottom: 1px var(--very-light-blue) solid;
+}
+
+.menu-bar {
+    width: 185px;
+    background-color: var(--white);
+}
+.menu-bar__item {
+    height: 50px;
+    color: var(--bluish-grey);
+}
+.menu-bar__item .icon-placeholder {
+    width: 20px;
+    height: 20px;
+    background-color: var(--bluish-grey);
+    border-radius: 50%;
+}
+
+.section {
+    border: 1px var(--very-light-blue) solid;
+    border-radius: 8px;
+    background-color: var(--white);
+    min-width: 800px;
+    margin: auto;
+}

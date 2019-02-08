@@ -40,11 +40,11 @@ type CreatePaymentReferenceOutput struct {
 }
 
 type PaymentReferenceCounter struct {
-	Code   string
-	Format string
+	Code   string `json:"code"`
+	Format string `json:"format"`
 }
 type PaymentReferenceRedirect struct {
-	PaymentURI string
+	PaymentURI string `json:"paymentURI"`
 }
 
 func GetResultFromPaymentAgent(cc *grpc.ClientConn, agent *CashInAgent, in *CreatePaymentReferenceInput) (*proto.CreateNewPaymentReferenceOutput, error) {
@@ -60,7 +60,7 @@ func GetResultFromPaymentAgent(cc *grpc.ClientConn, agent *CashInAgent, in *Crea
 		})
 		return result, err
 	default:
-		return nil, fmt.Errorf("Payment agent %s not supported", agent.Type)
+		return nil, fmt.Errorf("PaymentModel agent %s not supported", agent.Type)
 	}
 }
 
@@ -84,7 +84,7 @@ func (s *DefaultCashInAgentRepository) CreatePaymentReference(in *CreatePaymentR
 	}
 
 	if agentPaymentResult.Result == nil {
-		return nil, fmt.Errorf("Payment agent error")
+		return nil, fmt.Errorf("PaymentModel agent error")
 	}
 
 	switch agentPaymentResult.Result.Type {

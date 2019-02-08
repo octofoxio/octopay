@@ -1,6 +1,12 @@
 package api
 
-import "softnet/pkg/repository"
+import (
+	"context"
+	"fmt"
+	"github.com/gin-gonic/gin/json"
+	"softnet/pkg/api/proto"
+	"softnet/pkg/repository"
+)
 
 type CreateNewPaymentSessionInput repository.CreateInput
 type CreateNewPaymentSessionOutput struct {
@@ -15,6 +21,49 @@ type PaymentService interface {
 type DefaultPaymentService struct {
 	Payment repository.PaymentRepository
 	Agent   repository.CashInAgentRepository
+}
+
+func (d *DefaultPaymentService) GetTransactionList(c context.Context, in *proto.GetTransactionListInput) (*proto.GetTransactionListOutput, error) {
+
+	out, err := d.Payment.GetPayments(&repository.GetPaymentsInput{
+		Offset: int(in.Offset),
+		Limit:  int(in.Limit),
+	})
+
+	var result = []*proto.Transaction{}
+	if err != nil {
+		return nil, err
+	}
+	for _, payment := range out.Result {
+
+		histories := []*proto.History{}
+		for _, history := range payment.History {
+			histories = append(histories, &proto.History{
+				Status: history.Status,
+				Memo:   history.Memo,
+			})
+		}
+		result = append(result, &proto.Transaction{
+			ID:              payment.ID.String(),
+			Currency:        payment.CurrencyCode,
+			Amount:          float32(payment.Amount),
+			History:         histories,
+			CashInReference: payment.CashInReference,
+			CashInType:      payment.CashInType,
+			PaymentProvider: &proto.PaymentAgent{
+				ID:   payment.CashInAgent.ID,
+				Type: payment.CashInAgent.Type,
+			},
+		})
+	}
+
+	return &proto.GetTransactionListOutput{
+		Transactions: result,
+	}, nil
+}
+
+func (d *DefaultPaymentService) ConfirmPaymentCashIn(context.Context, *proto.ConfirmPaymentCashInInput) (*proto.ConfirmPaymentCashInOutput, error) {
+	return &proto.ConfirmPaymentCashInOutput{}, nil
 }
 
 func (d *DefaultPaymentService) CreateNewPaymentSession(input *CreateNewPaymentSessionInput) (*CreateNewPaymentSessionOutput, error) {
@@ -38,17 +87,34 @@ func (d *DefaultPaymentService) CreateNewPaymentSession(input *CreateNewPaymentS
 		Amount:       paymentRecord.Amount,
 		AgentID:      paymentRecord.CashInAgentID,
 	})
-
+	var history *repository.CommitHistoryInput
 	if err != nil {
-
-		if err := d.Payment.CommitHistory(&repository.CommitHistoryInput{
+		history = &repository.CommitHistoryInput{
 			PaymentID: paymentRecord.ID.String(),
 			Status:    repository.PaymentStatusFailed,
 			Memo:      err.Error(),
+		}
+	} else {
+
+		ref, err := json.Marshal(cashInRef.Data)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := d.Payment.UpdateCashInInformation(&repository.UpdateCashInInformationInput{
+			CashInReference: string(ref),
+			CashInType:      cashInRef.Type,
+			ID:              paymentRecord.ID,
 		}); err != nil {
 			return nil, err
 		}
+		history = &repository.CommitHistoryInput{
+			PaymentID: paymentRecord.ID.String(),
+			Status:    repository.PaymentStatusReadyToCashIn,
+			Memo:      fmt.Sprintf("Response from %s", paymentRecord.CashInAgentID),
+		}
+	}
 
+	if err := d.Payment.CommitHistory(history); err != nil {
 		return nil, err
 	}
 

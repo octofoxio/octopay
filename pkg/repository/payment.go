@@ -21,14 +21,14 @@ type PaymentStatusHistory struct {
 	Memo      string
 }
 
-type Payment struct {
+type PaymentModel struct {
 	ID        uuid.UUID `gorm:"type:uuid; primary_key"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
 	ExpireAt      time.Time
-	History       []PaymentStatusHistory
-	CashInAgentID string `gorm:"type:uuid;not null"`
+	History       []PaymentStatusHistory `gorm:"ForeignKey:PaymentID;AssociationForeignKey:ID"`
+	CashInAgentID string                 `gorm:"type:uuid;not null"`
 	CashInAgent   CashInAgent
 
 	CurrencyCode string  `gorm:"not null"`
@@ -37,6 +37,7 @@ type Payment struct {
 	Ref2         sql.NullString
 
 	CashInReference string
+	CashInType      string
 
 	ClientID string
 	Client   ClientApplicationInformation
@@ -67,28 +68,56 @@ type CommitHistoryInput struct {
 type UpdateCashInInformationInput struct {
 	ID              *uuid.UUID
 	CashInReference string
+	CashInType      string
 }
 type UpdateCashInInformationOutput struct {
-	Status string
+}
+type GetPaymentsInput struct {
+	Limit  int
+	Offset int
+}
+type GetPaymentsOutput struct {
+	Result []PaymentModel
 }
 type PaymentRepository interface {
 	Create(*CreateInput) (*CreateOutput, error)
 	UpdateCashInInformation(*UpdateCashInInformationInput) (*UpdateCashInInformationOutput, error)
 	CommitHistory(input *CommitHistoryInput) error
+	GetPayments(input *GetPaymentsInput) (*GetPaymentsOutput, error)
 }
 
 type DefaultPaymentRepository struct {
 	DB *gorm.DB
 }
 
+func (d *DefaultPaymentRepository) GetPayments(input *GetPaymentsInput) (*GetPaymentsOutput, error) {
+	var result []PaymentModel
+	err := d.DB.Debug().
+		Preload("History").
+		Preload("CashInAgent").
+		Limit(input.Limit).
+		Offset(input.Offset).
+		Order("created_at desc").
+		Find(&result, &PaymentModel{}).
+		Error
+	return &GetPaymentsOutput{
+		Result: result,
+	}, err
+}
+
 func (d *DefaultPaymentRepository) UpdateCashInInformation(input *UpdateCashInInformationInput) (*UpdateCashInInformationOutput, error) {
 
-	if err := d.CommitHistory(&CommitHistoryInput{
-		PaymentID: input.ID.String(),
-		Status:    PaymentStatusReadyToCashIn,
-	}); err != nil {
+	if err := d.DB.Debug().
+		Model(&PaymentModel{}).
+		Update(&PaymentModel{
+			ID:              *input.ID,
+			CashInType:      input.CashInType,
+			CashInReference: input.CashInReference,
+		},
+		).Error; err != nil {
 		return nil, err
 	}
+
 	return &UpdateCashInInformationOutput{}, nil
 }
 
@@ -108,10 +137,10 @@ func (d *DefaultPaymentRepository) Create(in *CreateInput) (*CreateOutput, error
 	}
 
 	ID := uuid.NewV4()
-	var result Payment
-	st := d.DB.
+	var result PaymentModel
+	st := d.DB.Debug().
 		Create(
-			&Payment{
+			&PaymentModel{
 				ClientID:     in.ClientID,
 				ID:           ID,
 				CurrencyCode: in.CurrencyCode,
@@ -134,7 +163,7 @@ func (d *DefaultPaymentRepository) Create(in *CreateInput) (*CreateOutput, error
 				ExpireAt:      in.ExpireAt,
 			},
 		).
-		Find(&result, &Payment{
+		Find(&result, &PaymentModel{
 			ID: ID,
 		})
 

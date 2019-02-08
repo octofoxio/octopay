@@ -34,7 +34,7 @@ func DefaultGenesis(db *gorm.DB) *gorm.DB {
 	genesisDB.
 		AutoMigrate(
 			&CashInAgent{},
-			&Payment{},
+			&PaymentModel{},
 			&PaymentStatusHistory{},
 			&ClientApplicationInformation{},
 		).

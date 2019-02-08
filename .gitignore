@@ -2,3 +2,7 @@ node_modules
 vendor
 .idea
 *.sqlite
+web/pages/*.js
+web/pages/*.js.map
+.next
+yarn-error.log
