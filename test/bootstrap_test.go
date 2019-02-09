@@ -1,7 +1,7 @@
 package test
 
 import (
-	"softnet/pkg/database"
+	"softnet/pkg/repository"
 	"testing"
 )
 
