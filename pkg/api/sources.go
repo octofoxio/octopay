@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin/json"
+	"github.com/jinzhu/gorm"
 	"softnet/pkg/api/proto"
 	"softnet/pkg/repository"
 )
@@ -18,9 +19,66 @@ type PaymentService interface {
 	CreateNewPaymentSession(input *CreateNewPaymentSessionInput) (*CreateNewPaymentSessionOutput, error)
 }
 
+func NewTransactionFromPayment(payment *repository.PaymentModel) *proto.Transaction {
+	histories := []*proto.History{}
+	for _, history := range payment.History {
+		histories = append(histories, &proto.History{
+			Status: history.Status,
+			Memo:   history.Memo,
+		})
+	}
+	return &proto.Transaction{
+		ID:              payment.ID.String(),
+		Currency:        payment.CurrencyCode,
+		Amount:          float32(payment.Amount),
+		History:         histories,
+		CashInReference: payment.CashInReference,
+		CashInType:      payment.CashInType,
+		PaymentProvider: &proto.PaymentAgent{
+			ID:   payment.CashInAgent.ID,
+			Type: payment.CashInAgent.Type,
+		},
+	}
+}
+
 type DefaultPaymentService struct {
 	Payment repository.PaymentRepository
 	Agent   repository.CashInAgentRepository
+}
+
+func (d *DefaultPaymentService) UpdatePaymentStatus(c context.Context, in *proto.UpdatePaymentStatusInput) (*proto.UpdatePaymentStatusOutput, error) {
+	_, err := d.Payment.CommitHistory(&repository.CommitHistoryInput{
+		PaymentID: in.ID,
+		Memo:      in.Memo,
+		Status:    in.Status.String(),
+	})
+
+	if gorm.IsRecordNotFoundError(err) {
+		return &proto.UpdatePaymentStatusOutput{}, nil
+	} else if err != nil {
+		return &proto.UpdatePaymentStatusOutput{}, err
+	}
+
+	getTxResult, err := d.GetTransaction(c, &proto.GetTransactionInput{
+		ID: in.ID,
+	})
+
+	return &proto.UpdatePaymentStatusOutput{
+		Result: getTxResult.Result,
+	}, nil
+
+}
+
+func (d *DefaultPaymentService) GetTransaction(c context.Context, in *proto.GetTransactionInput) (*proto.GetTransactionOutput, error) {
+
+	getTxResult, err := d.Payment.GetPayment(&repository.GetPaymentInput{
+		ID: in.ID,
+	})
+
+	return &proto.GetTransactionOutput{
+		Result: NewTransactionFromPayment(getTxResult.Result),
+	}, err
+
 }
 
 func (d *DefaultPaymentService) GetTransactionList(c context.Context, in *proto.GetTransactionListInput) (*proto.GetTransactionListOutput, error) {
@@ -35,26 +93,7 @@ func (d *DefaultPaymentService) GetTransactionList(c context.Context, in *proto.
 		return nil, err
 	}
 	for _, payment := range out.Result {
-
-		histories := []*proto.History{}
-		for _, history := range payment.History {
-			histories = append(histories, &proto.History{
-				Status: history.Status,
-				Memo:   history.Memo,
-			})
-		}
-		result = append(result, &proto.Transaction{
-			ID:              payment.ID.String(),
-			Currency:        payment.CurrencyCode,
-			Amount:          float32(payment.Amount),
-			History:         histories,
-			CashInReference: payment.CashInReference,
-			CashInType:      payment.CashInType,
-			PaymentProvider: &proto.PaymentAgent{
-				ID:   payment.CashInAgent.ID,
-				Type: payment.CashInAgent.Type,
-			},
-		})
+		result = append(result, NewTransactionFromPayment(&payment))
 	}
 
 	return &proto.GetTransactionListOutput{
@@ -114,7 +153,7 @@ func (d *DefaultPaymentService) CreateNewPaymentSession(input *CreateNewPaymentS
 		}
 	}
 
-	if err := d.Payment.CommitHistory(history); err != nil {
+	if _, err := d.Payment.CommitHistory(history); err != nil {
 		return nil, err
 	}
 

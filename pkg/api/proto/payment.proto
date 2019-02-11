@@ -24,6 +24,30 @@ message Transaction {
 service Payment {
     rpc ConfirmPaymentCashIn (ConfirmPaymentCashInInput) returns (ConfirmPaymentCashInOutput);
     rpc GetTransactionList (GetTransactionListInput) returns (GetTransactionListOutput);
+    rpc GetTransaction (GetTransactionInput) returns (GetTransactionOutput);
+    rpc UpdatePaymentStatus (UpdatePaymentStatusInput) returns (UpdatePaymentStatusOutput);
+}
+enum PaymentStatus {
+    INITIAL                = 0;
+    READY_TO_CASH_IN          = 1;         // Payment gateway ตอบกลับมาแล้
+    CASH_IN_CONFIRM          = 2;          // มีเงินเข้ามาแล้ว
+    CALLBACK_ATTEMPT_SUCCESS = 3; // noti กลับไปที่ App client แล้ว
+    CALLBACK_ATTEMPT_FAILED  = 4;  // noti กลับไปที่ app client แล้ว แต่ failed
+    FAILED                 = 5;
+}
+message UpdatePaymentStatusInput {
+    string ID  = 1;
+    PaymentStatus Status = 2;
+    string Memo = 3;
+}
+message UpdatePaymentStatusOutput {
+    Transaction result = 1;
+}
+message GetTransactionInput {
+    string ID = 1;
+}
+message GetTransactionOutput {
+    Transaction result = 1;
 }
 message GetTransactionListInput{
     int32 limit = 1;

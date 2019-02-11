@@ -1,5 +1,6 @@
 import {PaymentClient} from "../generated/payment_grpc_pb";
 import {GetTransactionListInput} from "../generated/payment_pb";
+import {TransactionGRPCToGraphQL} from "../utils/apollo";
 
 interface TransactionListResolverContext {
     paymentClient: PaymentClient
@@ -36,29 +37,7 @@ export function PaymentListResolver(_, args: TransactionListResolverArgs, contex
                 return
             }
             const txList = response.getTransactionsList().map(transactionItem => {
-                let p = transactionItem.getPaymentprovider()
-                let provider: { type: string, id: string } | null = null
-                if (typeof p !== "undefined") {
-                    provider = {
-                        id: p.getId(),
-                        type: p.getType(),
-                    }
-                }
-
-                return {
-                    id: transactionItem.getId(),
-                    amount: transactionItem.getAmount(),
-                    currency: transactionItem.getCurrency(),
-                    cashInReference: transactionItem.getCashinreference(),
-                    cashInType: transactionItem.getCashintype(),
-                    provider,
-                    histories: transactionItem.getHistoryList().map(history => {
-                        return {
-                            status: history.getStatus(),
-                            memo: history.getMemo(),
-                        }
-                    }),
-                }
+                return TransactionGRPCToGraphQL(transactionItem)
             })
             resolve(txList)
         })

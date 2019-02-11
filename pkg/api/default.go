@@ -17,6 +17,7 @@ type NewAPIInput struct {
 	ClientAppInfo repository.ClientApplicationInformationRepository
 	PaymentGRPC   proto2.PaymentServer
 	PaymentAPI    PaymentService
+	Webhook       WebhookService
 }
 
 func NewAPI(in *NewAPIInput) (*gin.Engine, func()) {
@@ -50,7 +51,13 @@ func NewAPI(in *NewAPIInput) (*gin.Engine, func()) {
 
 	webhookResource := r.Group("/webhooks")
 	{
+		webhookResource.Use(in.Middleware.WithValidateClientCredentials)
+		webhookResource.Use(in.Middleware.WithSessionLogger)
+
 		webhookResource.POST("/", func(c *gin.Context) {
+			logger, _ := GetLogger(c)
+			session := MustGetClient(c)
+
 			type Body struct {
 				URL         string `json:"url"`
 				HTTPHeaders []struct {
@@ -60,6 +67,15 @@ func NewAPI(in *NewAPIInput) (*gin.Engine, func()) {
 			}
 			var body Body
 			err := c.BindJSON(&body)
+
+			err = in.Webhook.RegisterWebhookByClientID(&RegisterWebhookByClientIDInput{
+				WebhookURL: body.URL,
+				ClientID:   session.ID,
+			})
+
+			if err != nil {
+				logger.Error(err)
+			}
 
 		})
 	}

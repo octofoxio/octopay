@@ -3,6 +3,8 @@ import {GraphQLServer} from "graphql-yoga";
 import {gql} from "apollo-boost";
 import { PaymentClient } from './generated/payment_grpc_pb'
 import {Payment_ReferenceResolver, PaymentListResolver} from "./resolvers/transactionList";
+import {UpdatePaymentStatusResolver} from "./resolvers/transactionUpdateStatus";
+import {PaymentStatus} from "./generated/payment_pb";
 const grpc = require('grpc')
 
 const dev = process.env.NODE_ENV !== 'production'
@@ -22,6 +24,9 @@ const server = new GraphQLServer({
         },
         Query :{
             payments: PaymentListResolver,
+        },
+        Mutation: {
+            updatePaymentStatus: UpdatePaymentStatusResolver
         }
 
     },
@@ -30,9 +35,17 @@ const server = new GraphQLServer({
             type Query {
                 payments(limit: Int = 10, offset: Int): [Payment!]!
             }
+            type Mutation {
+                updatePaymentStatus(id: String!, status: PaymentStatus!): Payment
+            }
+            
+            enum PaymentStatus {
+                ${Object.keys(PaymentStatus).map(k =>  `${k}\n`)}
+            }
+            
             type PaymentHistory {
                 memo: String
-                status: String!
+                status: PaymentStatus!
             } 
             type PaymentProvider {
                 id: String!

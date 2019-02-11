@@ -2,16 +2,20 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"github.com/jinzhu/gorm"
 	"github.com/satori/go.uuid"
+	"softnet/pkg/api/proto"
 	"time"
 )
 
-const (
-	PaymentStatusInitial       = "INITIAL"
-	PaymentStatusReadyToCashIn = "READY_TO_CASH_IN"
-	PaymentStatusCashInConfirm = "CASH_IN_CONFIRM"
-	PaymentStatusFailed        = "FAILED"
+var (
+	PaymentStatusInitial                = proto.PaymentStatus_INITIAL.String()
+	PaymentStatusReadyToCashIn          = proto.PaymentStatus_READY_TO_CASH_IN.String()         // Payment gateway ตอบกลับมาแล้ว
+	PaymentStatusCashInConfirm          = proto.PaymentStatus_CASH_IN_CONFIRM.String()          // มีเงินเข้ามาแล้ว
+	PaymentStatusCallbackAttemptSuccess = proto.PaymentStatus_CALLBACK_ATTEMPT_SUCCESS.String() // noti กลับไปที่ App client แล้ว
+	PaymentStatusCallbackAttemptFailed  = proto.PaymentStatus_CALLBACK_ATTEMPT_FAILED.String()  // noti กลับไปที่ app client แล้ว แต่ failed
+	PaymentStatusFailed                 = proto.PaymentStatus_FAILED.String()
 )
 
 type PaymentStatusHistory struct {
@@ -65,12 +69,16 @@ type CommitHistoryInput struct {
 	Status    string
 	Memo      string
 }
+type CommitHistoryOutput struct {
+	History []PaymentStatusHistory
+}
 type UpdateCashInInformationInput struct {
 	ID              *uuid.UUID
 	CashInReference string
 	CashInType      string
 }
 type UpdateCashInInformationOutput struct {
+	Result PaymentModel
 }
 type GetPaymentsInput struct {
 	Limit  int
@@ -79,15 +87,46 @@ type GetPaymentsInput struct {
 type GetPaymentsOutput struct {
 	Result []PaymentModel
 }
+type GetPaymentInput struct {
+	ID string
+}
+type GetPaymentOutput struct {
+	Result *PaymentModel
+}
 type PaymentRepository interface {
 	Create(*CreateInput) (*CreateOutput, error)
 	UpdateCashInInformation(*UpdateCashInInformationInput) (*UpdateCashInInformationOutput, error)
-	CommitHistory(input *CommitHistoryInput) error
+	CommitHistory(input *CommitHistoryInput) (*CommitHistoryOutput, error)
 	GetPayments(input *GetPaymentsInput) (*GetPaymentsOutput, error)
+	GetPayment(input *GetPaymentInput) (*GetPaymentOutput, error)
 }
 
 type DefaultPaymentRepository struct {
 	DB *gorm.DB
+}
+
+func (d *DefaultPaymentRepository) GetPayment(input *GetPaymentInput) (*GetPaymentOutput, error) {
+	var result PaymentModel
+	ID, err := uuid.FromString(input.ID)
+	if err != nil {
+		return &GetPaymentOutput{}, err
+	}
+	err = d.DB.Debug().
+		Preload("History").
+		Preload("CashInAgent").
+		Order("created_at desc").
+		Find(&result, &PaymentModel{
+			ID: ID,
+		}).Error
+	if gorm.IsRecordNotFoundError(err) {
+		return &GetPaymentOutput{}, nil
+	} else if err != nil {
+		return &GetPaymentOutput{}, err
+	} else {
+		return &GetPaymentOutput{
+			Result: &result,
+		}, nil
+	}
 }
 
 func (d *DefaultPaymentRepository) GetPayments(input *GetPaymentsInput) (*GetPaymentsOutput, error) {
@@ -107,27 +146,41 @@ func (d *DefaultPaymentRepository) GetPayments(input *GetPaymentsInput) (*GetPay
 
 func (d *DefaultPaymentRepository) UpdateCashInInformation(input *UpdateCashInInformationInput) (*UpdateCashInInformationOutput, error) {
 
+	var result PaymentModel
 	if err := d.DB.Debug().
 		Model(&PaymentModel{}).
 		Update(&PaymentModel{
 			ID:              *input.ID,
 			CashInType:      input.CashInType,
 			CashInReference: input.CashInReference,
-		},
-		).Error; err != nil {
+		}).
+		Find(&result, &PaymentModel{
+			ID: *input.ID,
+		}).Error; err != nil {
 		return nil, err
 	}
 
-	return &UpdateCashInInformationOutput{}, nil
+	return &UpdateCashInInformationOutput{
+		Result: result,
+	}, nil
 }
 
-func (d *DefaultPaymentRepository) CommitHistory(input *CommitHistoryInput) error {
-	st := d.DB.Create(&PaymentStatusHistory{
-		PaymentID: uuid.FromStringOrNil(input.PaymentID),
-		Memo:      input.Memo,
-		Status:    input.Status,
-	})
-	return st.Error
+func (d *DefaultPaymentRepository) CommitHistory(input *CommitHistoryInput) (*CommitHistoryOutput, error) {
+	var history []PaymentStatusHistory
+	ID := uuid.FromStringOrNil(input.PaymentID)
+	if ID == uuid.Nil {
+		return nil, fmt.Errorf("Invalid Payment ID")
+	}
+	st := d.DB.
+		Create(&PaymentStatusHistory{
+			PaymentID: ID,
+			Memo:      input.Memo,
+			Status:    input.Status,
+		}).
+		Find(&history, &PaymentStatusHistory{
+			PaymentID: ID,
+		})
+	return &CommitHistoryOutput{}, st.Error
 }
 
 func (d *DefaultPaymentRepository) Create(in *CreateInput) (*CreateOutput, error) {

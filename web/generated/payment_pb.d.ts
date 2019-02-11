@@ -99,6 +99,98 @@ export namespace Transaction {
   }
 }
 
+export class UpdatePaymentStatusInput extends jspb.Message {
+  getId(): string;
+  setId(value: string): void;
+
+  getStatus(): PaymentStatus;
+  setStatus(value: PaymentStatus): void;
+
+  getMemo(): string;
+  setMemo(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): UpdatePaymentStatusInput.AsObject;
+  static toObject(includeInstance: boolean, msg: UpdatePaymentStatusInput): UpdatePaymentStatusInput.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: UpdatePaymentStatusInput, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): UpdatePaymentStatusInput;
+  static deserializeBinaryFromReader(message: UpdatePaymentStatusInput, reader: jspb.BinaryReader): UpdatePaymentStatusInput;
+}
+
+export namespace UpdatePaymentStatusInput {
+  export type AsObject = {
+    id: string,
+    status: PaymentStatus,
+    memo: string,
+  }
+}
+
+export class UpdatePaymentStatusOutput extends jspb.Message {
+  hasResult(): boolean;
+  clearResult(): void;
+  getResult(): Transaction | undefined;
+  setResult(value?: Transaction): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): UpdatePaymentStatusOutput.AsObject;
+  static toObject(includeInstance: boolean, msg: UpdatePaymentStatusOutput): UpdatePaymentStatusOutput.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: UpdatePaymentStatusOutput, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): UpdatePaymentStatusOutput;
+  static deserializeBinaryFromReader(message: UpdatePaymentStatusOutput, reader: jspb.BinaryReader): UpdatePaymentStatusOutput;
+}
+
+export namespace UpdatePaymentStatusOutput {
+  export type AsObject = {
+    result?: Transaction.AsObject,
+  }
+}
+
+export class GetTransactionInput extends jspb.Message {
+  getId(): string;
+  setId(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): GetTransactionInput.AsObject;
+  static toObject(includeInstance: boolean, msg: GetTransactionInput): GetTransactionInput.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: GetTransactionInput, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): GetTransactionInput;
+  static deserializeBinaryFromReader(message: GetTransactionInput, reader: jspb.BinaryReader): GetTransactionInput;
+}
+
+export namespace GetTransactionInput {
+  export type AsObject = {
+    id: string,
+  }
+}
+
+export class GetTransactionOutput extends jspb.Message {
+  hasResult(): boolean;
+  clearResult(): void;
+  getResult(): Transaction | undefined;
+  setResult(value?: Transaction): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): GetTransactionOutput.AsObject;
+  static toObject(includeInstance: boolean, msg: GetTransactionOutput): GetTransactionOutput.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: GetTransactionOutput, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): GetTransactionOutput;
+  static deserializeBinaryFromReader(message: GetTransactionOutput, reader: jspb.BinaryReader): GetTransactionOutput;
+}
+
+export namespace GetTransactionOutput {
+  export type AsObject = {
+    result?: Transaction.AsObject,
+  }
+}
+
 export class GetTransactionListInput extends jspb.Message {
   getLimit(): number;
   setLimit(value: number): void;
@@ -179,5 +271,14 @@ export class ConfirmPaymentCashInOutput extends jspb.Message {
 export namespace ConfirmPaymentCashInOutput {
   export type AsObject = {
   }
+}
+
+export enum PaymentStatus {
+  INITIAL = 0,
+  READY_TO_CASH_IN = 1,
+  CASH_IN_CONFIRM = 2,
+  CALLBACK_ATTEMPT_SUCCESS = 3,
+  CALLBACK_ATTEMPT_FAILED = 4,
+  FAILED = 5,
 }
 

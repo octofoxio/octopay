@@ -19,9 +19,9 @@
     height: 100vh;
 }
 .navigation-bar {
-    background-color: var(--white);
-    height: 79px;
-    border-bottom: 1px var(--very-light-blue) solid;
+    /*background-color: var(--white);*/
+    /*height: 79px;*/
+    /*border-bottom: 1px var(--very-light-blue) solid;*/
 }
 
 .menu-bar {
